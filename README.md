@@ -1,5 +1,7 @@
 # Making DensePose fast and light
 
+Code for [_Making DensePose fast and light_](http://arxiv.org/abs/2006.15190).
+
 # Original DensePose project Quick Start
 
 See [ Getting Started ](doc/GETTING_STARTED.md)
