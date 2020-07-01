@@ -15,7 +15,7 @@ See [ Getting Started ](doc/GETTING_STARTED.md)
 1. You can train a network from scratch using configs in `./configs` folder and `train_net.py` script. 
   * `s0_bv2_bifpn_f64_s3x.yaml` config corresponds to the `Mobile-RCNN (B s3x)` model, 
   * `s0_bv2_bifpn_f64.yaml` config corresponds to the `Mobile-RCNN (B s1x)` model, 
-  * `densepose_parsing_rcnn_spnasnet_100_FPN_s3x.yaml` config corresponds to the `Mobile-RCNN (A s1x)` model, 
+  * `densepose_parsing_rcnn_spnasnet_100_FPN_s3x.yaml` config corresponds to the `Mobile-RCNN (A s3x)` model, 
   *  `densepose_parsing_rcnn_R_50_FPN_s1x.yaml` config corresponds to the  `Parsing RCNN` model
   
 Then evaluate the model with `--eval_only` flag.
