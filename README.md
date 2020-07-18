@@ -9,7 +9,13 @@ See [ Getting Started ](doc/GETTING_STARTED.md)
 # Training and Evaluation
 
 0. The project dependencies:
-* `detectron2==0.1.0`
+* `detectron2`
+Install it the following way:
+```
+git clone https://github.com/facebookresearch/detectron2.git && cd detectron2
+git checkout b1fe5127e41b506cd3769180ad774dec0bfd56b0
+pip install -e .
+```
 * `pytorch >= 1.4.0`
 
 1. You can train a network from scratch using configs in `./configs` folder and `train_net.py` script. 
@@ -23,4 +29,4 @@ Then evaluate the model with `--eval_only` flag.
 2. You can run QAT of the `Mobile-RCNN (B s3x)` using `train_net.py` with `--qat` flag then evaluate it with `--quant-eval` flag.
 To use proposed hooks preserving mechanism it is needed to modify PyTorch source code according to files inside `modify_pytorch` directroy
 OR
-Build PyTorch from source using the following commit https://github.com/pytorch/pytorch/pull/37233/commits/c8de10d2a394484ac58dd131878950b8ab7ac7a9
+Use PyTorch nightly build (it is now containing the following commit https://github.com/pytorch/pytorch/pull/37233/commits/c8de10d2a394484ac58dd131878950b8ab7ac7a9)
