@@ -16,6 +16,7 @@ git clone https://github.com/facebookresearch/detectron2.git && cd detectron2
 git checkout b1fe5127e41b506cd3769180ad774dec0bfd56b0
 pip install -e .
 ```
+* `timm == 0.1.16`
 * `pytorch >= 1.4.0`
 
 1. You can train a network from scratch using configs in `./configs` folder and `train_net.py` script. 
