@@ -18,6 +18,7 @@ pip install -e .
 ```
 * `timm == 0.1.16`
 * `pytorch >= 1.4.0`
+* `geffnet` (install it to avoid errors https://github.com/zetyquickly/DensePoseFnL/issues/9#issuecomment-803012041)
 
 1. You can train a network from scratch using configs in `./configs` folder and `train_net.py` script. 
   * `s0_bv2_bifpn_f64_s3x.yaml` config corresponds to the `Mobile-RCNN (B s3x)` model, 
