@@ -27,7 +27,13 @@ pip install -e .
   
 Then evaluate the model with `--eval_only` flag.
 
+For example one could run: ```python train_net.py --config-file configs/s0_bv2_bifpn_f64_s3x.yaml --eval-only MODEL.WEIGHTS model.pth 
+MODEL.RPN.POST_NMS_TOPK_TEST 100 MODEL.ROI_HEADS.NMS_THRESH_TEST 0.3``` 
+But keep in mind that `model.pth` isn't present, one needs to train network first!
+
 2. You can run QAT of the `Mobile-RCNN (B s3x)` using `train_net.py` with `--qat` flag then evaluate it with `--quant-eval` flag.
 To use proposed hooks preserving mechanism it is needed to modify PyTorch source code according to files inside `modify_pytorch` directroy
 OR
 Use PyTorch nightly build (it is now containing the following commit https://github.com/pytorch/pytorch/pull/37233/commits/c8de10d2a394484ac58dd131878950b8ab7ac7a9)
+
+
