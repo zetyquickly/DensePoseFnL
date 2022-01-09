@@ -33,8 +33,6 @@ def setup(args):
     cfg.merge_from_file(args.config_file)
     cfg.merge_from_list(args.opts)
     cfg.freeze()
-    # if cfg.MODEL.ROI_DENSEPOSE_HEAD.DECODER_ISSIMPLE:
-    #
     default_setup(cfg, args)
     # Setup logger for "densepose" module
     setup_logger(output=cfg.OUTPUT_DIR, distributed_rank=comm.get_rank(), name="densepose")

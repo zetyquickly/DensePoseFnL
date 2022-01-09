@@ -45,8 +45,8 @@ python train_net.py --config-file configs/mobile_parsing_rcnn_b_s3x.yaml --eval-
 <th valign="bottom">dp. AP<br/>GPSm</th>
 <th valign="bottom">download</th>
 <!-- TABLE BODY -->
-<!-- ROW: Mobile-RCNN-B -->
-<tr><td align="left"><a href="../configs/mobile_parsing_rcnn_b_s3x.yaml">Mobile-RCNN-B</a></td>
+<!-- ROW: Mobile-Parsing-RCNN-B -->
+<tr><td align="left"><a href="../configs/mobile_parsing_rcnn_b_s3x.yaml">Mobile-Parsing-RCNN-B</a></td>
 <td align="center">s3x</td>
 <td align="center">57.1</td>
 <td align="center">59.0</td>
@@ -54,8 +54,8 @@ python train_net.py --config-file configs/mobile_parsing_rcnn_b_s3x.yaml --eval-
 <td align="center">54.4</td>
 <td align="center"><a href="https://drive.google.com/file/d/1yC5QBT0fYmMrI40RhrA3nB5Pa-F7XpFt/view?usp=sharing">model</a></td>
 </tr>
-<!-- ROW: Mobile-RCNN-B-WC2M -->
-<tr><td align="left"><a href="../configs/mobile_parsing_rcnn_b_wc2m_s3x.yaml">Mobile-RCNN-B-WC2M</a></td>
+<!-- ROW: Mobile-Parsing-RCNN-B-WC2M -->
+<tr><td align="left"><a href="../configs/mobile_parsing_rcnn_b_wc2m_s3x.yaml">Mobile-Parsing-RCNN-B-WC2M</a></td>
 <td align="center">s3x</td>
 <td align="center">59.4</td>
 <td align="center">63.7</td>
