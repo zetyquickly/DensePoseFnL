@@ -63,14 +63,25 @@ python train_net.py --config-file configs/mobile_parsing_rcnn_b_s3x.yaml --eval-
 <td align="center">60.3</td>
 <td align="center"><a href="https://drive.google.com/file/d/1yEBH7ArbadycdSW-Yk1rM5Hl0v3HE7_V/view?usp=sharing">model</a></td>
 </tr>
+<!-- ROW: Mobile-Parsing-RCNN-B-CSE -->
+<tr><td align="left"><a href="../configs/mobile_parsing_rcnn_b_cse_s3x.yaml">Mobile-Parsing-RCNN-B-CSE</a></td>
+<td align="center">s3x</td>
+<td align="center">60.2</td>
+<td align="center">64.3</td>
+<td align="center">59.0</td>
+<td align="center">61.2</td>
+<td align="center"><a href="https://drive.google.com/file/d/1yfZuM8git92NFVEP2PtjBeMyJuXSeLj3/view?usp=sharing">model</a></td>
+</tr>
 </tbody></table>
 
 `WC2M` corresponds to new training procedure and the model that performs estimation of confidence in regressed UV
-coodrinates as well as confidences associated with coarse and fine segmentation,
+coordinates as well as confidences associated with coarse and fine segmentation;
 see [Sanakoyeu et al., 2020](https://arxiv.org/pdf/2003.00080.pdf) for details.
 
-Note: weights for Mobile-Parsing-RCNN-B (s3x) are not exactly the same as presented in the paper but with a similar
-performance
+`CSE` corresponds to a continuous surface embeddings model for humans;
+see [Neverova et al., 2020](https://arxiv.org/abs/2011.12438) for details.
+
+Note: weights for Mobile-Parsing-RCNN-B (s3x) are not the same as presented in the paper but with a similar performance.
 
 ## More instructions
 

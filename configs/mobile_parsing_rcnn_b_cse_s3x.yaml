@@ -1,0 +1,69 @@
+_BASE_: "DensePose-Parsing-RCNN-FPN.yaml"
+INPUT:
+  FORMAT: "RGB"
+MODEL:
+  PIXEL_MEAN: [ 123.675, 116.280, 103.530 ]
+  PIXEL_STD: [ 58.395, 57.120, 57.375 ]
+  BACKBONE:
+    NAME: "build_timm_bifpn_backbone"
+  TIMMNETS:
+    NAME: "spnasnet_100"
+    SCRIPTABLE: True
+    PRETRAINED: True
+    OUT_FEATURES: (1,2,3,4)
+    NORM: "FrozenBN"
+  FPN:
+    IN_FEATURES: [ "s1","s2","s3","s5" ]
+    OUT_CHANNELS: 64
+  ROI_BOX_HEAD:
+    CONV_DIM: 64
+    NUM_FC: 0
+    NUM_CONV: 2
+    POOLER_SAMPLING_RATIO: 0
+    POOLER_TYPE: "ROIAlignV2"
+  ROI_DENSEPOSE_HEAD:
+    NAME: "DensePoseDeepLabHead"
+    CONV_HEAD_DIM: 64
+    HEATMAP_SIZE: 64
+    POOLER_SAMPLING_RATIO: 0
+    POOLER_TYPE: "ROIAlignV2"
+    DEEPLAB:
+      NONLOCAL_ON: 0
+    NUM_COARSE_SEGM_CHANNELS: 2
+    PREDICTOR_NAME: "DensePoseEmbeddingPredictor"
+    LOSS_NAME: "DensePoseCseLoss"
+    CSE:
+      EMBED_LOSS_NAME: "SoftEmbeddingLoss"
+      EMBEDDERS:
+        "smpl_27554":
+          TYPE: vertex_feature
+          NUM_VERTICES: 27554
+          FEATURE_DIM: 256
+          FEATURES_TRAINABLE: False
+          IS_TRAINABLE: True
+          INIT_FILE: "https://dl.fbaipublicfiles.com/densepose/data/cse/lbo/phi_smpl_27554_256.pkl"
+    INDEX_WEIGHTS: 5.0
+    PART_WEIGHTS: 1.0
+    POINT_REGRESSION_WEIGHTS: 0.01
+SOLVER:
+  BASE_LR: 0.01
+  CLIP_GRADIENTS:
+    CLIP_TYPE: norm
+    CLIP_VALUE: 1.0
+    ENABLED: true
+    NORM_TYPE: 2.0
+  MAX_ITER: 390000
+  STEPS: (330000, 370000)
+TEST:
+  EVAL_PERIOD: 390000
+DENSEPOSE_EVALUATION:
+  TYPE: cse
+  STORAGE: file
+DATASETS:
+  TRAIN:
+    - "densepose_coco_2014_train_cse"
+    - "densepose_coco_2014_valminusminival_cse"
+  TEST:
+    - "densepose_coco_2014_minival_cse"
+  CLASS_TO_MESH_NAME_MAPPING:
+    "0": "smpl_27554"
