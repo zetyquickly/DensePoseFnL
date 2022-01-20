@@ -5,7 +5,7 @@ light_](http://arxiv.org/abs/2006.15190)
 
 # Changelog
 
-- `[January 2022]` Updated to latest Detectron2 and released the weights
+- `[January 2022]` Updated to latest Detectron2 and released the weights. **Breaking**: network quantization lost in this version [issue](https://github.com/zetyquickly/DensePoseFnL/issues/17).
 - `[June 2020]` Initial code release
 
 ## Installation
