@@ -1,11 +1,23 @@
+from typing import List
+
 import timm
 import torch
+import torch.distributed as dist
+import torch.nn as nn
 import torch.nn.functional as F
-from detectron2.layers import NaiveSyncBatchNorm, ShapeSpec
+from detectron2.layers import ShapeSpec
 from detectron2.modeling import Backbone
-from torch import nn
+from detectron2.modeling.backbone.fpn import LastLevelMaxPool
 
 __all__ = ["BiFPN"]
+
+
+def get_world_size() -> int:
+    if not dist.is_available():
+        return 1
+    if not dist.is_initialized():
+        return 1
+    return dist.get_world_size()
 
 
 class DepthwiseSeparableConv2d(nn.Sequential):
@@ -50,7 +62,10 @@ class Conv3x3BnReLU(nn.Sequential):
             padding=1,
             stride=stride,
         )
-        bn = NaiveSyncBatchNorm(in_channels, momentum=0.03)
+        if get_world_size() > 1:
+            bn = nn.SyncBatchNorm(in_channels, momentum=0.03)
+        else:
+            bn = nn.BatchNorm2d(in_channels, momentum=0.03)
         relu = nn.ReLU(inplace=True)
         super().__init__(conv, bn, relu)
 
@@ -63,7 +78,7 @@ class FastNormalizedFusion(nn.Module):
         self.weight = nn.Parameter(torch.ones(in_nodes, dtype=torch.float32))
         self.register_buffer("eps", torch.tensor(0.0001))
 
-    def forward(self, *x):
+    def forward(self, x: List[torch.Tensor]):
         if len(x) != self.in_nodes:
             raise RuntimeError(
                 "Expected to have {} input nodes, but have {}.".format(self.in_nodes, len(x))
@@ -71,8 +86,10 @@ class FastNormalizedFusion(nn.Module):
 
         # where wi ≥ 0 is ensured by applying a relu after each wi (paper)
         weight = F.relu(self.weight)
-        weighted_xs = [xi * wi for xi, wi in zip(x, weight)]
-        normalized_weighted_x = sum(weighted_xs) / (weight.sum() + self.eps)
+        x_sum = 0
+        for xi, wi in zip(x, weight):
+            x_sum = x_sum + xi * wi
+        normalized_weighted_x = x_sum / (weight.sum() + self.eps)
         return normalized_weighted_x
 
 
@@ -127,22 +144,24 @@ class BiFPN(Backbone):
         return self._size_divisibility
 
     def forward(self, x):
-        p5, p4, p3, p2 = self.bottom_up(x)  # top->down
-        _dummy = sum(x.view(-1)[0] for x in self.bottom_up.parameters()) * 0.0
-        p5 = p5 + _dummy
+        p2, p3, p4, p5 = self.bottom_up(x)
+
+        if self.training:
+            _dummy = sum(x.view(-1)[0] for x in self.bottom_up.parameters()) * 0.0
+            p5 = p5 + _dummy
 
         p5 = self.l5(p5)
         p4 = self.l4(p4)
         p3 = self.l3(p3)
         p2 = self.l2(p2)
 
-        p4_tr = self.p4_tr(self.fuse_p4_tr(p4, self.up(p5)))
-        p3_tr = self.p3_tr(self.fuse_p3_tr(p3, self.up(p4_tr)))
+        p4_tr = self.p4_tr(self.fuse_p4_tr([p4, self.up(p5)]))
+        p3_tr = self.p3_tr(self.fuse_p3_tr([p3, self.up(p4_tr)]))
 
-        p2_out = self.p2_out(self.fuse_p2_out(p2, self.up(p3_tr)))
-        p3_out = self.p3_out(self.fuse_p3_out(p3, p3_tr, self.down_p2(p2_out)))
-        p4_out = self.p4_out(self.fuse_p4_out(p4, p4_tr, self.down_p3(p3_out)))
-        p5_out = self.p5_out(self.fuse_p5_out(p5, self.down_p4(p4_out)))
+        p2_out = self.p2_out(self.fuse_p2_out([p2, self.up(p3_tr)]))
+        p3_out = self.p3_out(self.fuse_p3_out([p3, p3_tr, self.down_p2(p2_out)]))
+        p4_out = self.p4_out(self.fuse_p4_out([p4, p4_tr, self.down_p3(p3_out)]))
+        p5_out = self.p5_out(self.fuse_p5_out([p5, self.down_p4(p4_out)]))
 
         return {"p2": p2_out, "p3": p3_out, "p4": p4_out, "p5": p5_out, "p6": self.top_block(p5_out)[0]}
 
@@ -155,18 +174,10 @@ class BiFPN(Backbone):
         }
 
 
-def test_script():
-    m = timm.create_model('spnasnet_100', pretrained=True, features_only=True, out_indices=(1, 2, 3, 4), )
-    x = torch.rand(1, 3, 224, 224)
-    m2 = BiFPN(m, 112)
-    torch.jit.trace(BiFPN(m, 10, 20), x)
-
-
 if __name__ == "__main__":
-    m = timm.create_model('spnasnet_100', pretrained=True, features_only=True, out_indices=(1, 2, 3, 4), )
+    m = timm.create_model('spnasnet_100', pretrained=True, features_only=True, out_indices=(1, 2, 3, 4))
     x = torch.rand(1, 3, 224, 224)
-    m2 = BiFPN(m, 112)
-    # for f in m2(x):
-    #     print(f.size())
-    # torch.jit.trace(BiFPN(m, 10, 20), x)
-    # assert isinstance(m, Backbone)
+    m2 = BiFPN(bottom_up=m, out_channels=112, top_block=LastLevelMaxPool())
+    # torch.jit.trace(m2, x)
+    m2 = torch.jit.script(m2)
+    print(m2(x))

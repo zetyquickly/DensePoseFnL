@@ -1,9 +1,0 @@
-_BASE_: "s0_bv2_bifpn.yaml"
-MODEL:
-  FPN:
-    OUT_CHANNELS: 64
-  ROI_BOX_HEAD:
-    CONV_DIM: 64
-  ROI_SHARED_BLOCK:
-    ASPP_DIM: 64
-    CONV_HEAD_DIM: 64

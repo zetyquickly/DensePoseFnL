@@ -1,0 +1,27 @@
+_BASE_: "Base-DensePose-RCNN-FPN.yaml"
+MODEL:
+  RPN:
+    # Number of regions per image used to train RPN
+    BATCH_SIZE_PER_IMAGE: 512
+  ROI_HEADS:
+    # RoI minibatch size *per image* (number of regions of interest [ROIs]) during training
+    # Total number of RoIs per training minibatch =
+    #   ROI_HEADS.BATCH_SIZE_PER_IMAGE * SOLVER.IMS_PER_BATCH
+    # E.g., a common configuration is: 512 * 16 = 8192
+    BATCH_SIZE_PER_IMAGE: 32
+  ROI_DENSEPOSE_HEAD:
+    NAME: "DensePoseDeepLabHead"
+    NUM_STACKED_CONVS: 4
+    CONV_HEAD_DIM: 512
+    UP_SCALE: 1
+    HEATMAP_SIZE: 64
+    POOLER_RESOLUTION: 32
+    POOLER_SAMPLING_RATIO: 2
+    POOLER_TYPE: "ROIAlign"
+    DECODER_ON: True
+    DECODER_ISSIMPLE: True
+    DEEPLAB:
+      NONLOCAL_ON: 1
+      NORM: ""
+INPUT:
+  MIN_SIZE_TRAIN: (512, 864)

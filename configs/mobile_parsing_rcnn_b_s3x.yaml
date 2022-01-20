@@ -1,0 +1,36 @@
+_BASE_: "DensePose-Parsing-RCNN-FPN.yaml"
+INPUT:
+  FORMAT: "RGB"
+MODEL:
+  PIXEL_MEAN: [ 123.675, 116.280, 103.530 ]
+  PIXEL_STD: [ 58.395, 57.120, 57.375 ]
+  BACKBONE:
+    NAME: "build_timm_bifpn_backbone"
+  TIMMNETS:
+    NAME: "spnasnet_100"
+    SCRIPTABLE: True
+    PRETRAINED: True
+    OUT_FEATURES: (1,2,3,4)
+    NORM: "FrozenBN"
+  FPN:
+    IN_FEATURES: [ "s1","s2","s3","s5" ]
+    OUT_CHANNELS: 64
+  ROI_BOX_HEAD:
+    CONV_DIM: 64
+    NUM_FC: 0
+    NUM_CONV: 2
+    POOLER_SAMPLING_RATIO: 0
+    POOLER_TYPE: "ROIAlignV2"
+  ROI_DENSEPOSE_HEAD:
+    NAME: "DensePoseDeepLabHead"
+    CONV_HEAD_DIM: 64
+    HEATMAP_SIZE: 64
+    POOLER_SAMPLING_RATIO: 0
+    POOLER_TYPE: "ROIAlignV2"
+    DEEPLAB:
+      NONLOCAL_ON: 0
+SOLVER:
+  MAX_ITER: 390000
+  STEPS: (330000, 370000)
+TEST:
+  EVAL_PERIOD: 390000

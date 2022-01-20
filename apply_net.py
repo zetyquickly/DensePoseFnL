@@ -1,32 +1,52 @@
+#!/usr/bin/env python3
+# Copied from
+# https://github.com/facebookresearch/detectron2/blob/bb96d0b01d0605761ca182d0e3fac6ead8d8df6e/projects/DensePose/apply_net.py
 
 import argparse
 import glob
 import logging
 import os
 import pickle
+import sys
 from typing import Any, ClassVar, Dict, List
+import torch
 
-from detectron2.config import get_cfg
+from detectron2.config import CfgNode, get_cfg
 from detectron2.data.detection_utils import read_image
 from detectron2.engine.defaults import DefaultPredictor
-from detectron2.structures.boxes import BoxMode
 from detectron2.structures.instances import Instances
 from detectron2.utils.logger import setup_logger
 
 from densepose import add_densepose_config
-from densepose.modeling.config import add_efficientnet_config, add_roi_shared_config
-from densepose.modeling.geffnet_backbone import *
-from densepose.modeling.layers.adaptive_pool import AdaptivePool
+from densepose.structures import DensePoseChartPredictorOutput, DensePoseEmbeddingPredictorOutput
 from densepose.utils.logger import verbosity_to_level
 from densepose.vis.base import CompoundVisualizer
 from densepose.vis.bounding_box import ScoredBoundingBoxVisualizer
-from densepose.vis.densepose import (
+from densepose.vis.densepose_outputs_vertex import (
+    DensePoseOutputsTextureVisualizer,
+    DensePoseOutputsVertexVisualizer,
+    get_texture_atlases,
+)
+from densepose.vis.densepose_results import (
     DensePoseResultsContourVisualizer,
     DensePoseResultsFineSegmentationVisualizer,
     DensePoseResultsUVisualizer,
     DensePoseResultsVVisualizer,
 )
-from densepose.vis.extractor import CompoundExtractor, create_extractor
+from densepose.vis.densepose_results_textures import (
+    DensePoseResultsVisualizerWithTexture,
+    get_texture_atlas,
+)
+from densepose.vis.extractor import (
+    CompoundExtractor,
+    DensePoseOutputsExtractor,
+    DensePoseResultExtractor,
+    create_extractor,
+)
+
+import backbone
+import roi_heads
+from config import add_timmnets_config
 
 DOC = """Apply Net - a tool to print / visualize DensePose results
 """
@@ -64,6 +84,12 @@ class InferenceAction(Action):
         parser.add_argument("cfg", metavar="<config>", help="Config file")
         parser.add_argument("model", metavar="<model>", help="Model file")
         parser.add_argument("input", metavar="<input>", help="Input data")
+        parser.add_argument(
+            "--opts",
+            help="Modify config options using the command-line 'KEY VALUE' pairs",
+            default=[],
+            nargs=argparse.REMAINDER,
+        )
 
     @classmethod
     def execute(cls: type, args: argparse.Namespace):
@@ -77,7 +103,7 @@ class InferenceAction(Action):
         if len(file_list) == 0:
             logger.warning(f"No input images for {args.input}")
             return
-        context = cls.create_context(args)
+        context = cls.create_context(args, cfg)
         for file_name in file_list:
             img = read_image(file_name, format="BGR")  # predictor expects BGR image.
             with torch.no_grad():
@@ -91,11 +117,9 @@ class InferenceAction(Action):
     ):
         cfg = get_cfg()
         add_densepose_config(cfg)
-
-        add_efficientnet_config(cfg)
-        add_roi_shared_config(cfg)
-
+        add_timmnets_config(cfg)
         cfg.merge_from_file(config_fpath)
+        cfg.merge_from_list(args.opts)
         if opts:
             cfg.merge_from_list(opts)
         cfg.MODEL.WEIGHTS = model_fpath
@@ -153,14 +177,15 @@ class DumpAction(InferenceAction):
         if outputs.has("pred_boxes"):
             result["pred_boxes_XYXY"] = outputs.get("pred_boxes").tensor.cpu()
             if outputs.has("pred_densepose"):
-                boxes_XYWH = BoxMode.convert(
-                    result["pred_boxes_XYXY"], BoxMode.XYXY_ABS, BoxMode.XYWH_ABS
-                )
-                result["pred_densepose"] = outputs.get("pred_densepose").to_result(boxes_XYWH)
+                if isinstance(outputs.pred_densepose, DensePoseChartPredictorOutput):
+                    extractor = DensePoseResultExtractor()
+                elif isinstance(outputs.pred_densepose, DensePoseEmbeddingPredictorOutput):
+                    extractor = DensePoseOutputsExtractor()
+                result["pred_densepose"] = extractor(outputs)[0]
         context["results"].append(result)
 
     @classmethod
-    def create_context(cls: type, args: argparse.Namespace):
+    def create_context(cls: type, args: argparse.Namespace, cfg: CfgNode):
         context = {"results": [], "out_fname": args.output}
         return context
 
@@ -187,6 +212,9 @@ class ShowAction(InferenceAction):
         "dp_segm": DensePoseResultsFineSegmentationVisualizer,
         "dp_u": DensePoseResultsUVisualizer,
         "dp_v": DensePoseResultsVVisualizer,
+        "dp_iuv_texture": DensePoseResultsVisualizerWithTexture,
+        "dp_cse_texture": DensePoseOutputsTextureVisualizer,
+        "dp_vertex": DensePoseOutputsVertexVisualizer,
         "bbox": ScoredBoundingBoxVisualizer,
     }
 
@@ -214,6 +242,18 @@ class ShowAction(InferenceAction):
         )
         parser.add_argument(
             "--nms_thresh", metavar="<threshold>", default=None, type=float, help="NMS threshold"
+        )
+        parser.add_argument(
+            "--texture_atlas",
+            metavar="<texture_atlas>",
+            default=None,
+            help="Texture atlas file (for IUV texture transfer)",
+        )
+        parser.add_argument(
+            "--texture_atlases_map",
+            metavar="<texture_atlases_map>",
+            default=None,
+            help="JSON string of a dict containing texture atlas files for each mesh",
         )
         parser.add_argument(
             "--output",
@@ -268,12 +308,18 @@ class ShowAction(InferenceAction):
         return base + ".{0:04d}".format(entry_idx) + ext
 
     @classmethod
-    def create_context(cls: type, args: argparse.Namespace) -> Dict[str, Any]:
+    def create_context(cls: type, args: argparse.Namespace, cfg: CfgNode) -> Dict[str, Any]:
         vis_specs = args.visualizations.split(",")
         visualizers = []
         extractors = []
         for vis_spec in vis_specs:
-            vis = cls.VISUALIZERS[vis_spec]()
+            texture_atlas = get_texture_atlas(args.texture_atlas)
+            texture_atlases_dict = get_texture_atlases(args.texture_atlases_map)
+            vis = cls.VISUALIZERS[vis_spec](
+                cfg=cfg,
+                texture_atlas=texture_atlas,
+                texture_atlases_dict=texture_atlases_dict,
+            )
             visualizers.append(vis)
             extractor = create_extractor(vis)
             extractors.append(extractor)
@@ -302,14 +348,7 @@ def create_argument_parser() -> argparse.ArgumentParser:
 
 def main():
     parser = create_argument_parser()
-    parser.add_argument("--adaptive-pool", action="store_true", help="replace roialign, roipool to adaptivepool")
     args = parser.parse_args()
-
-    if args.adaptive_pool:
-        import detectron2.modeling.poolers
-        detectron2.modeling.poolers.RoIPool = AdaptivePool
-        detectron2.modeling.poolers.ROIAlign = AdaptivePool
-
     verbosity = args.verbosity if hasattr(args, "verbosity") else None
     global logger
     logger = setup_logger(name=LOGGER_NAME)
