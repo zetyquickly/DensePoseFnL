@@ -1,0 +1,17 @@
+model:
+  name: cse_480_k300
+  checkpoint: ../../models/mobile_parsing_rcnn_b_cse_s3x.pth
+input:
+  input_height: 480
+  input_width: 640
+rois:
+  k_proposals: 300
+  k_detections: 4
+cse:
+  cse_match: optimized
+  cse_match_resolution: 64
+  cse_pixels: 4096
+  cse_blocks: 4096
+  cse_group: 4
+export:
+  out_dir: ../out
