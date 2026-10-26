@@ -74,9 +74,9 @@ numpy < 2, timm 0.4.12) that conflict with the export stack, so it has its own e
 repo root:
 
     uv sync --project export/reference
-    uv pip install --python export/reference/.venv/bin/python --no-build-isolation \
-        "git+https://github.com/facebookresearch/detectron2.git@bb96d0b01d0605761ca182d0e3fac6ead8d8df6e" \
-        "detectron2-densepose @ git+https://github.com/facebookresearch/detectron2.git@bb96d0b01d0605761ca182d0e3fac6ead8d8df6e#subdirectory=projects/DensePose"
+
+The lock includes detectron2 and DensePose at `bb96d0b`. detectron2 is built from source without its CUDA ops, since everything here runs
+on the CPU. The build settings in `reference/pyproject.toml` need a recent uv (tested with 0.12).
 
 **Accuracy table.** Box AP, segm AP, GPS and GPSm come from detectron2/DensePose's own `DensePoseCocoEval` on
 `densepose_coco_2014_minival_cse` (the images and `densepose_minival2014_cse.json` under `datasets/coco/`). Our predictions are saved from
