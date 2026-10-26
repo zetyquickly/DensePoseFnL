@@ -83,6 +83,7 @@ def main():
         backends += [("gpu fp32", {"use_gpu": "true", "gpu_precision_loss_allowed": "false"}),
                      ("gpu fp16", {"use_gpu": "true", "gpu_precision_loss_allowed": "true"})]
 
+    failed = []
     results = {"device": model, "runs": a.runs, "graphs": {}}
     for g in graphs:
         results["graphs"][g] = {}
@@ -91,6 +92,7 @@ def main():
             res, log = benchmark(adb, g, flags, a.runs, a.warmup)
             if res is None:
                 print(f"[FAIL] {g} {label}:\n{log}")
+                failed.append(f"{g} {label}")
             results["graphs"][g][label] = res
             if res:
                 print(f"{g:<10} {label:<9} median {res['median_ms']:7.2f} ms  avg {res['avg_ms']:7.2f}  p95 {res['p95_ms']:7.2f}  "
@@ -101,13 +103,16 @@ def main():
         print(f"{g:<9} " + "".join(f"{(results['graphs'][g][label] or {}).get('median_ms', float('nan')):>10.2f}" for label, _ in backends))
     print("\nbest per graph (sum = model time of one frame, host glue excluded):")
     total = 0.0
+    missing = []
     for g in graphs:
         ok = {k: v for k, v in results["graphs"][g].items() if v}
         if ok:
             best = min(ok, key=lambda k: ok[k]["median_ms"])
             total += ok[best]["median_ms"]
             print(f"  {g:<10} {ok[best]['median_ms']:7.2f} ms  ({best})")
-    print(f"  {'sum':<10} {total:7.2f} ms")
+        else:
+            missing.append(g)
+    print(f"  {'sum':<10} {total:7.2f} ms" + (f"  (incomplete: no result for {', '.join(missing)})" if missing else ""))
 
     if a.op_profile:
         for g in graphs:
@@ -124,6 +129,8 @@ def main():
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(results, indent=2))
     print(f"\nwrote {path}")
+    if failed:
+        raise SystemExit("failed: " + ", ".join(failed))
 
 
 if __name__ == "__main__":
