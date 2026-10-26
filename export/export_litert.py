@@ -19,6 +19,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("config")
     ap.add_argument("--only", nargs="*")
+    ap.add_argument("--tol", type=float, default=1e-3, help="largest allowed |tflite - torch| on the exporter's inputs")
     args = ap.parse_args()
 
     cfg = ExportConfig.load(args.config)
@@ -35,18 +36,17 @@ def main():
         with torch.no_grad():
             ref = module(*inputs)
         ref = ref if isinstance(ref, tuple) else (ref,)
-        try:
-            edge = litert_torch.convert(module, inputs)
-            path = out / f"{name}.tflite"
-            edge.export(str(path))
-            res = edge(*inputs)
-            res = res if isinstance(res, (tuple, list)) else (res,)
-            diffs = [float(np.abs(np.asarray(a, dtype=np.float64) - b.numpy().astype(np.float64)).max())
-                     for a, b in zip(res, ref)]
-            print(f"[ok]   {name}: {path.stat().st_size / 1e6:.2f} MB, {time.time() - t:.0f}s, "
-                  f"max|tflite-torch| per output = {max(diffs):.2e}")
-        except Exception as e:  # keep going so one failing graph doesn't hide the others
-            print(f"[FAIL] {name}: {type(e).__name__}: {str(e)[:800]}")
+        edge = litert_torch.convert(module, inputs)
+        path = out / f"{name}.tflite"
+        edge.export(str(path))
+        res = edge(*inputs)
+        res = res if isinstance(res, (tuple, list)) else (res,)
+        if len(res) != len(ref):
+            raise SystemExit(f"{name}: {len(res)} outputs, the torch module has {len(ref)}")
+        diff = max(float(np.abs(np.asarray(a, dtype=np.float64) - b.numpy().astype(np.float64)).max()) for a, b in zip(res, ref))
+        if diff > args.tol:
+            raise SystemExit(f"{name}: max|tflite-torch| = {diff:.2e} exceeds --tol {args.tol:g}")
+        print(f"{name}: {path.stat().st_size / 1e6:.2f} MB, {time.time() - t:.0f}s, max|tflite-torch| = {diff:.2e}")
 
 
 if __name__ == "__main__":
