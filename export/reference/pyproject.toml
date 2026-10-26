@@ -26,6 +26,8 @@ dependencies = [
 ]
 
 [tool.uv]
+# extra-build-dependencies with match-runtime (0.8.5) and extra-build-variables (0.8.6)
+required-version = ">=0.8.6"
 # DensePose's setup.py asks for detectron2 from its default branch; keep it on the commit the repo is pinned to
 override-dependencies = [
     "detectron2 @ git+https://github.com/facebookresearch/detectron2.git@bb96d0b01d0605761ca182d0e3fac6ead8d8df6e",

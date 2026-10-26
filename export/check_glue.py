@@ -13,27 +13,27 @@ from torchvision.ops import roi_align
 
 from fnl_export import glue
 
-failed = []
+failed, current = [], ""   # "<file>: <check>" of every failed check; the file being checked
 
 
 def count(name, ours, ref):
     print(f"  {name}: ours {ours}, detectron2 {ref}")
     if ours != ref:
-        failed.append(name)
+        failed.append(f"{current}: {name}")
 
 
 def report(name, ours, ref, tol):
     ours, ref = np.asarray(ours, np.float64), np.asarray(ref, np.float64)
     if ours.shape != ref.shape:
         print(f"    {name:<28} SHAPE {ours.shape} vs {ref.shape}  FAIL")
-        failed.append(name)
+        failed.append(f"{current}: {name}")
         return
     d = np.abs(ours - ref)
     ok = d.size == 0 or d.max() <= tol
     print(f"    {name:<28} {str(ref.shape):<22} max|diff| {d.max(initial=0):.2e}  mean|diff| {d.mean() if d.size else 0:.2e}  "
           f"max|ref| {np.abs(ref).max(initial=0):.2e}  {'ok' if ok else 'FAIL'}")
     if not ok:
-        failed.append(name)
+        failed.append(f"{current}: {name}")
 
 
 def check_roi_align(feat):
@@ -46,7 +46,11 @@ def check_roi_align(feat):
 
 
 def main(files):
+    global current
+    if not files:
+        raise SystemExit("usage: python check_glue.py out/reference_480x640/*.npz (no dumps given)")
     for f in files:
+        current = Path(f).stem
         r = np.load(f)
         h, w = r["image_raw_padded"].shape[2:]
         print(Path(f).name)
@@ -70,10 +74,10 @@ def main(files):
             report("det_scores", scores[:m], ref_s[:m], 1e-2)
         if "dp_head_in" in r:
             report("pool_dp (dp_head_in)", glue.pool_dp(feats[0], ref_b, 32), r["dp_head_in"], 1e-3)
-    if files:
-        check_roi_align(np.load(files[0])["feat_p2"])
+    current = "roi_align"
+    check_roi_align(np.load(files[0])["feat_p2"])
     if failed:
-        raise SystemExit(f"FAILED ({len(failed)}): " + ", ".join(sorted(set(failed))))
+        raise SystemExit(f"FAILED ({len(failed)}):\n  " + "\n  ".join(failed))
     print("all ok")
 
 

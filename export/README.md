@@ -75,8 +75,8 @@ repo root:
 
     uv sync --project export/reference
 
-The lock includes detectron2 and DensePose at `bb96d0b`. detectron2 is built from source without its CUDA ops, since everything here runs
-on the CPU. The build settings in `reference/pyproject.toml` need uv 0.8.6 or newer.
+The lock includes detectron2 and DensePose at `bb96d0b`. The first sync compiles detectron2 (a C++ compiler, a few minutes), without its
+CUDA ops, since everything here runs on the CPU. The build settings in `reference/pyproject.toml` need uv 0.8.6 or newer.
 
 **Accuracy table.** Box AP, segm AP, GPS and GPSm come from detectron2/DensePose's own `DensePoseCocoEval` on
 `densepose_coco_2014_minival_cse` (the images and `densepose_minival2014_cse.json` under `datasets/coco/`). Our predictions are saved from
