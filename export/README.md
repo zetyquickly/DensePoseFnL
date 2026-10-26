@@ -68,7 +68,7 @@ detectron2 needs old pins (torch 2.2, numpy < 2, timm 0.4.12) that conflict with
     uv sync --project export/reference
 
 The lock includes detectron2 and DensePose at `bb96d0b`. The first sync compiles detectron2 (a C++ compiler, a few minutes), without its
-CUDA ops, since everything here runs on the CPU. The build settings in `reference/pyproject.toml` need uv 0.8.6 or newer.
+CUDA ops, since everything here runs on the CPU. The build settings in `reference/pyproject.toml` need uv 0.8.6 or newer: upgrade with `uv self update`, or run `uvx --from uv==0.8.6 uv` in place of `uv` for the commands in this section.
 
 ### Reproducing the accuracy table
 
