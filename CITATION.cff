@@ -1,0 +1,53 @@
+cff-version: 1.2.0
+message: "If you use this code or the checkpoints, please cite the paper below."
+title: "DensePoseFnL: Making DensePose fast and light"
+type: software
+license: MIT
+repository-code: "https://github.com/zetyquickly/DensePoseFnL"
+url: "https://huggingface.co/rusrakhimov/DensePoseFnL"
+keywords:
+  - densepose
+  - human pose estimation
+  - mobile
+  - detectron2
+authors: &authors
+  - family-names: Rakhimov
+    given-names: Ruslan
+    affiliation: Skolkovo Institute of Science and Technology
+  - family-names: Bogomolov
+    given-names: Emil
+    affiliation: Skolkovo Institute of Science and Technology
+  - family-names: Notchenko
+    given-names: Alexandr
+    affiliation: Skolkovo Institute of Science and Technology
+  - family-names: Mao
+    given-names: Fung
+    affiliation: Huawei Moscow Research Center
+  - family-names: Artemov
+    given-names: Alexey
+    affiliation: Skolkovo Institute of Science and Technology
+  - family-names: Zorin
+    given-names: Denis
+    affiliation: Skolkovo Institute of Science and Technology; New York University
+  - family-names: Burnaev
+    given-names: Evgeny
+    affiliation: Skolkovo Institute of Science and Technology
+preferred-citation:
+  type: conference-paper
+  title: "Making DensePose fast and light"
+  authors: *authors
+  collection-title: "Proceedings of the IEEE/CVF Winter Conference on Applications of Computer Vision (WACV)"
+  conference:
+    name: "IEEE/CVF Winter Conference on Applications of Computer Vision (WACV)"
+  year: 2021
+  month: 1
+  start: 1869
+  end: 1877
+  url: "https://openaccess.thecvf.com/content/WACV2021/html/Rakhimov_Making_DensePose_Fast_and_Light_WACV_2021_paper.html"
+  identifiers:
+    - type: doi
+      value: 10.1109/WACV48630.2021.00191
+      description: IEEE Xplore version
+    - type: other
+      value: "arXiv:2006.15190"
+      description: arXiv preprint
