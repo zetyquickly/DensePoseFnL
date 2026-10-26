@@ -20,9 +20,7 @@ Writes `out/litert/cse/graph_{a,b1,b2,c}.tflite` and `vertex_embeddings.npy` (co
 | config | network input (HxW) |
 |---|---|
 | `cse` / `cse_portrait` | 480x640 / 640x480 |
-| `cse_576` | 576x768 |
-| `cse_800` / `cse_800_portrait` | 800x1088 / 1088x800 |
-| `cse_480_k300` | 480x640, 300 box proposals instead of 100 |
+| `cse_800` / `cse_800_portrait` | 800x1088 / 1088x800, 300 box proposals instead of 100 |
 | `wc2m` | chart head (`mobile_parsing_rcnn_b_wc2m_s3x.pth`) |
 
 `benchmark_android.py configs/cse.yaml [--gpu]` times each graph on a connected phone with TFLite's `benchmark_model`.
@@ -42,68 +40,96 @@ live camera). It builds against a checkout of this repo (`export/engine` and `ex
 ## Accuracy
 
 Measured on `densepose_coco_2014_minival_cse` (1508 images) with detectron2/DensePose's own evaluators, on the host CPU with the exported
-graphs in fp32 (the phone runs fp16). Detectron2 rows use its default input (shortest edge 800) or the same letterboxed canvas as ours.
+graphs in fp32 (the phone runs fp16) and the numpy glue `glue.py`; the engine's vertex matching is emulated in PyTorch. Nothing below was run on
+the phone. Detectron2 rows use its default input (shortest edge 800) or the same letterboxed canvas as ours. Unless a row says "top 4", every
+detection above 0.05 is scored against the full ground truth. Commands to reproduce are in section 5.
 
 | model | box AP | segm AP | GPS | GPSm |
 |---|---|---|---|---|
 | detectron2, Model Zoo | 60.2 | 64.3 | 59.0 | 61.2 |
 | detectron2, 800px input, re-evaluated | 60.2 | 64.2 | 59.1 | 61.2 |
 | detectron2 @ 480x640 | 54.0 | 61.3 | 53.0 | 56.7 |
-| **ours** 480x640, graphs + glue, stock matching | 52.9 | 61.3 | 53.0 | 56.6 |
-| **ours** 480x640, engine output | 52.9 | 61.3 | 50.7 | 55.4 |
-
-"Engine output" is what the engine returns: vertex ids matched on the 64x64 person pixels and resized nearest to the box, with the
-approximate graph C. "Stock matching" resizes the embedding bilinearly to the box and takes the exact nearest vertex, as detectron2 does.
-
-Input size is what matters. Engine output (approximate C), S25 GPU, A/B1/B2 fp16, back to back:
-
-| config | dets/img | box AP | segm AP | GPS | GPSm | S25 fps | stage 1 (ms) |
-|---|---|---|---|---|---|---|---|
-| `cse` 480x640, 100 proposals | 8.1 | 52.9 | 61.3 | 50.7 | 55.4 | 49.0 | 20.3 |
-| `cse_480_k300` 480x640, 300 proposals | 12.1 | 53.6 | 61.3 | 50.7 | 55.4 | 41.9 | 23.7 |
-| `cse_576` 576x768 | 11.8 | 56.0 | 63.0 | 54.3 | 58.2 | 36.4 | 27.3 |
-| `cse_800` 800x1088 | 11.6 | 59.5 | 64.5 | 56.7 | 60.4 | 23.5 | 42.2 |
-
-The 800x1088 network is within 0.7 box AP of detectron2's default but cannot hold 25 fps. Going from 100 to 300 proposals adds
-0.7 box AP.
+| **ours** `cse` 480x640, detectron2's vertex matching, all detections | 52.9 | 61.3 | 53.0 | 56.6 |
+| **ours** `cse` 480x640, engine's vertex matching, all detections | 52.9 | 61.3 | 50.7 | 55.4 |
+| **ours** `cse` 480x640, engine's vertex matching, top 4 with score >= 0.5 per image (as the phone keeps) | 42.2 | 60.1 | 50.0 | 54.6 |
+| **ours** `cse_portrait` 640x480, engine's vertex matching, all detections | 50.4 | 59.4 | 48.3 | 53.2 |
+| **ours** `cse_portrait` 640x480, engine's vertex matching, top 4 with score >= 0.5 per image | 41.1 | 58.4 | 47.8 | 52.6 |
+| **ours** `cse_800` 800x1088, engine's vertex matching, all detections | 59.5 | 64.5 | 56.7 | 60.4 |
+| **ours** `cse_800` 800x1088, engine's vertex matching, top 4 with score >= 0.5 per image | 44.9 | 63.0 | 55.5 | 59.1 |
+| **ours** `cse_800_portrait` 1088x800, engine's vertex matching, all detections | 57.8 | 63.7 | 55.8 | 59.3 |
+| **ours** `cse_800_portrait` 1088x800, engine's vertex matching, top 4 with score >= 0.5 per image | 44.2 | 62.5 | 54.9 | 58.3 |
 
 ## 5. Validation (optional)
 
-Nothing above needs this. It reproduces the accuracy table and checks the glue against detectron2. detectron2 needs old pins (torch 2.2,
-numpy < 2, timm 0.4.12) that conflict with the export stack, so it has its own environment in `reference/`. Run everything below from the
-repo root:
+Nothing above needs this. It is for reproducing the accuracy table and for checking that the glue does what detectron2 does.
+
+detectron2 needs old pins (torch 2.2, numpy < 2, timm 0.4.12) that conflict with the export stack, so it lives in its own environment in `reference/`. Set it up once. All commands in this section run from the repo root; "export env" means `uv run --project export`, "reference env" means `uv run --project export/reference`.
 
     uv sync --project export/reference
     uv pip install --python export/reference/.venv/bin/python --no-build-isolation \
         "git+https://github.com/facebookresearch/detectron2.git@bb96d0b01d0605761ca182d0e3fac6ead8d8df6e" \
         "detectron2-densepose @ git+https://github.com/facebookresearch/detectron2.git@bb96d0b01d0605761ca182d0e3fac6ead8d8df6e#subdirectory=projects/DensePose"
 
-**Accuracy table.** Box AP, segm AP, GPS and GPSm come from detectron2/DensePose's own `DensePoseCocoEval` on
-`densepose_coco_2014_minival_cse` (the images and `densepose_minival2014_cse.json` under `datasets/coco/`). Our predictions are saved from
-the export env, detectron2's from the reference env, and one scorer reads both:
+### Reproducing the accuracy table
 
+The images and `densepose_minival2014_cse.json` go under `datasets/coco/`. The scoring is detectron2/DensePose's own `DensePoseCocoEval`. Predictions are saved first (ours from the export env, detectron2's from the reference env), then one scorer reads both.
     ANN=datasets/coco/annotations/densepose_minival2014_cse.json
-    # export env: exported graphs + glue over the split
-    uv run --project export python export/eval_pipeline.py export/configs/cse.yaml --images datasets/coco/val2014 --ann $ANN --out export/out/eval/ours.npz
-    # reference env: the original model (--mode default: shortest edge 800; --mode canvas: our letterboxed input)
-    uv run --project export/reference python export/reference/eval_detectron2.py export/configs/cse.yaml configs/mobile_parsing_rcnn_b_cse_s3x.yaml \
-        datasets/coco/val2014 $ANN export/out/eval/d2.npz --mode default
-    uv run --project export/reference python export/reference/prep_geodists.py     # once: geodesic distances for GPS / GPSm, needs ~10 GB of RAM
-    uv run --project export/reference python export/reference/eval_predictions.py "d2=export/out/eval/d2.npz" "ours=export/out/eval/ours.npz@engine-approx@device"
+    OUT=export/out/eval
 
-A run is `LABEL=FILE.npz[@MATCHING[@FILTER]]`: `stock` matching is detectron2's (embedding resized bilinearly to the box, exact nearest
-vertex), `engine` and `engine-approx` are the engine's (vertex ids on the 64x64 person pixels, exact or with the approximate graph C), and
-the `device` filter keeps what the phone sends on (top `K2` with score >= `S`, default 4 and 0.5) where `all` keeps every detection above 0.05.
+    # ours: exported graphs + glue.py on the host (needs export/out/litert/cse from section 2)
+    uv run --project export python export/eval_pipeline.py export/configs/cse.yaml \
+        --images datasets/coco/val2014 --ann $ANN --out $OUT/ours.npz
 
-**Glue tests.** `engine/tests/test_glue.cc` checks the C++ glue against `fnl_export/glue.py`, and `check_glue.py` checks `glue.py` against
-detectron2's own tensors, so the C++ is tied to detectron2 through the numpy port. Both start from tensors dumped by detectron2 on a few images
-(`test_glue` also runs a NaN-logit case: non-finite RPN logits are dropped before the top-k, as detectron2 drops them before NMS):
+    # detectron2: the original model, at its own input size and at ours
+    for mode in default canvas; do
+        uv run --project export/reference python export/reference/eval_detectron2.py \
+            export/configs/cse.yaml configs/mobile_parsing_rcnn_b_cse_s3x.yaml \
+            datasets/coco/val2014 $ANN $OUT/d2_$mode.npz --mode $mode
+    done
 
-    uv run --project export/reference python export/reference/dump_detectron2.py export/configs/cse.yaml configs/mobile_parsing_rcnn_b_cse_s3x.yaml \
+    # once: geodesic distances for GPS / GPSm (needs ~10 GB of RAM)
+    uv run --project export/reference python export/reference/prep_geodists.py
+
+    # score
+    uv run --project export/reference python export/reference/eval_predictions.py \
+        --vertices export/out/litert/cse/vertex_embeddings.npy \
+        "detectron2, 800px input=$OUT/d2_default.npz" \
+        "detectron2 @ 480x640=$OUT/d2_canvas.npz" \
+        "ours, detectron2's matching=$OUT/ours.npz" \
+        "ours, engine's matching=$OUT/ours.npz@engine-approx" \
+        "ours, engine's matching, top 4=$OUT/ours.npz@engine-approx@device"
+
+Each scored run is `LABEL=FILE.npz` plus up to two options after `@`:
+
+- **Matching** decides how a detection's embedding is turned into vertex ids.
+  - `stock` (the default) is detectron2's way: resize the embedding to the box, take the exact nearest vertex.
+  - `engine` is the engine's way: take the nearest vertex on the 64x64 person pixels, then resize the ids to the box.
+  - `engine-approx` is the same, using the approximate graph C that the phone runs.
+- **Filter** decides which detections are scored.
+  - `all` (the default) scores every detection above 0.05.
+  - `device` keeps what the phone keeps: per image, the top 4 with score >= 0.5 (change with `--device K2 SCORE`). It is applied to the saved host predictions; nothing is run on the phone.
+
+The first row of the table, the Model Zoo numbers, is detectron2's published result and is not rerun.
+
+### Checking the glue
+
+`glue.py` and `glue.cc` are two ports of the same detectron2 code, so they are checked in a chain: detectron2 against `glue.py`, then `glue.py` against `glue.cc`. Both checks start from tensors dumped by detectron2 on a few images.
+
+    # dump detectron2's tensors (reference env)
+    uv run --project export/reference python export/reference/dump_detectron2.py \
+        export/configs/cse.yaml configs/mobile_parsing_rcnn_b_cse_s3x.yaml \
         export/out/reference_480x640 datasets/coco/val2014/<image>.jpg ...
-    cd export
-    uv run python check_glue.py out/reference_480x640/*.npz
-    uv run python engine/tools/make_test_vectors.py out/glue_vectors out/reference_480x640/*.npz
-    cmake -S engine -B out/engine_host && make -C out/engine_host test_glue && out/engine_host/test_glue out/glue_vectors/*
 
-`compare_with_detectron2.py` compares detectron2's tensors with our graphs run eagerly and as `.tflite`, graph by graph.
+    # detectron2 vs glue.py: prints the largest difference after each step (export env)
+    uv run --project export python export/check_glue.py export/out/reference_480x640/*.npz
+
+    # glue.py vs glue.cc: dump test vectors, build the host test, run it
+    uv run --project export python export/engine/tools/make_test_vectors.py \
+        export/out/glue_vectors export/out/reference_480x640/*.npz
+    cmake -S export/engine -B export/out/engine_host
+    make -C export/out/engine_host test_glue
+    export/out/engine_host/test_glue export/out/glue_vectors/*
+
+`test_glue` also feeds the C++ glue NaN RPN logits. Non-finite logits are dropped before the top-k, as detectron2 drops them before NMS.
+
+To compare detectron2 with our graphs one graph at a time, run `export/compare_with_detectron2.py`. It checks the graphs eagerly in PyTorch and as `.tflite`, each fed detectron2's own input so errors don't pile up.
