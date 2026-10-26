@@ -27,6 +27,17 @@ using Clock = std::chrono::steady_clock;
 
 double Ms(Clock::time_point a, Clock::time_point b) { return std::chrono::duration<double, std::milli>(b - a).count(); }
 
+std::string ShapeStr(const std::vector<int>& s) {
+  std::string r = "(";
+  for (size_t i = 0; i < s.size(); ++i) r += (i ? "," : "") + std::to_string(s[i]);
+  return r + ")";
+}
+
+void ExpectShape(const char* what, const std::vector<int>& got, const std::vector<int>& want) {
+  if (got != want)
+    throw std::runtime_error(std::string(what) + " has shape " + ShapeStr(got) + ", the engine expects " + ShapeStr(want));
+}
+
 template <typename T>
 class Queue {
  public:
@@ -229,6 +240,10 @@ struct Engine::Impl {
       k1 = b1.InShape()[0], k2 = b2.InShape()[0];
       res = b2.OutShape(0)[2];
       emb_dim = b2.OutShape(0)[1];
+      // the glue pools 7x7 for graph B1 and 32x32 for graph B2; a model set exported with other pool sizes would read wrong data
+      const int ch = a.OutShape(0)[1];
+      ExpectShape("graph_b1 input", b1.InShape(), {k1, ch, 7, 7});
+      ExpectShape("graph_b2 input", b2.InShape(), {k2, ch, 32, 32});
       ready.set_value();
       started = true;
 
@@ -298,6 +313,9 @@ struct Engine::Impl {
     bool started = false;
     try {
       Graph c(opts.model_dir + "/graph_c.tflite", false, opts.cpu_threads, true);
+      if (c.InShape().size() != 2)
+        throw std::runtime_error("graph_c input has shape " + ShapeStr(c.InShape()) +
+                                 ", the engine expects the optimized graph C (N,16): export with cse_match: optimized");
       const int chunk = c.InShape()[0];
       ready.set_value();
       started = true;
