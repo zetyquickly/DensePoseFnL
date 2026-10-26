@@ -7,8 +7,10 @@
 // --save writes the results for tools/render_overlay.py: "FNL2", u32 net_w, net_h, res, f32 scale, crop_x, crop_y, then per frame
 // i64 id, u32 n, and per person f32 box[4], f32 score, f32 margin[res*res] (fg - bg, > 0 = person), i32 vertex[res*res].
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstdio>
+#include <exception>
 #include <map>
 #include <string>
 #include <thread>
@@ -78,58 +80,73 @@ int main(int argc, char** argv) {
     int frames = 0;
     double person_px = 0;
     Clock::time_point first_done, last_done;
+    // Next() rethrows a pipeline error; it must not leave this thread (std::terminate), so it is carried over to main()
+    std::exception_ptr consumer_error;
+    std::atomic<bool> failed{false};
     std::thread consumer([&] {
-      fnl::FrameResult r;
-      bool header = false;
-      while (engine.Next(&r)) {
-        last_done = Clock::now();
-        if (frames == warmup) first_done = last_done;
-        if (save) {
-          if (!header) {
-            std::fwrite("FNL2", 1, 4, save);
-            const uint32_t d[3] = {static_cast<uint32_t>(r.net_w), static_cast<uint32_t>(r.net_h), static_cast<uint32_t>(r.res)};
-            std::fwrite(d, 4, 3, save);
-            const float crop[3] = {r.scale, static_cast<float>(r.crop_x), static_cast<float>(r.crop_y)};
-            std::fwrite(crop, 4, 3, save);
-            header = true;
+      try {
+        fnl::FrameResult r;
+        bool header = false;
+        while (engine.Next(&r)) {
+          last_done = Clock::now();
+          if (frames == warmup) first_done = last_done;
+          if (save) {
+            if (!header) {
+              std::fwrite("FNL2", 1, 4, save);
+              const uint32_t d[3] = {static_cast<uint32_t>(r.net_w), static_cast<uint32_t>(r.net_h), static_cast<uint32_t>(r.res)};
+              std::fwrite(d, 4, 3, save);
+              const float crop[3] = {r.scale, static_cast<float>(r.crop_x), static_cast<float>(r.crop_y)};
+              std::fwrite(crop, 4, 3, save);
+              header = true;
+            }
+            const uint32_t n = static_cast<uint32_t>(r.people.size());
+            std::fwrite(&r.id, 8, 1, save);
+            std::fwrite(&n, 4, 1, save);
+            for (const auto& p : r.people) {
+              std::fwrite(&p.box, 4, 4, save);
+              std::fwrite(&p.score, 4, 1, save);
+              std::fwrite(p.margin.data(), 4, p.margin.size(), save);
+              std::fwrite(p.vertex.data(), 4, p.vertex.size(), save);
+            }
           }
-          const uint32_t n = static_cast<uint32_t>(r.people.size());
-          std::fwrite(&r.id, 8, 1, save);
-          std::fwrite(&n, 4, 1, save);
-          for (const auto& p : r.people) {
-            std::fwrite(&p.box, 4, 4, save);
-            std::fwrite(&p.score, 4, 1, save);
-            std::fwrite(p.margin.data(), 4, p.margin.size(), save);
-            std::fwrite(p.vertex.data(), 4, p.vertex.size(), save);
+          if (frames >= warmup) {
+            const auto& t = r.t;
+            const std::pair<const char*, double> rows[] = {
+                {"preprocess", t.preprocess}, {"A", t.a}, {"rpn glue", t.rpn}, {"pool B1", t.pool_b1}, {"B1", t.b1},
+                {"detect glue", t.detect}, {"pool DP", t.pool_dp}, {"B2", t.b2}, {"pack", t.pack}, {"C", t.c},
+                {"stage 1", t.stage1}, {"stage 2", t.stage2}, {"latency", t.latency}};
+            for (const auto& row : rows) stats[row.first].v.push_back(row.second);
+            person_px += r.person_pixels;
           }
+          if (++frames % 25 == 0)
+            std::printf("frame %5d: %zu people, %5d px, stage1 %.1f ms, stage2 %.1f ms, latency %.1f ms\n", frames, r.people.size(),
+                        r.person_pixels, r.t.stage1, r.t.stage2, r.t.latency);
         }
-        if (frames >= warmup) {
-          const auto& t = r.t;
-          const std::pair<const char*, double> rows[] = {
-              {"preprocess", t.preprocess}, {"A", t.a}, {"rpn glue", t.rpn}, {"pool B1", t.pool_b1}, {"B1", t.b1},
-              {"detect glue", t.detect}, {"pool DP", t.pool_dp}, {"B2", t.b2}, {"pack", t.pack}, {"C", t.c},
-              {"stage 1", t.stage1}, {"stage 2", t.stage2}, {"latency", t.latency}};
-          for (const auto& row : rows) stats[row.first].v.push_back(row.second);
-          person_px += r.person_pixels;
-        }
-        if (++frames % 25 == 0)
-          std::printf("frame %5d: %zu people, %5d px, stage1 %.1f ms, stage2 %.1f ms, latency %.1f ms\n", frames, r.people.size(),
-                      r.person_pixels, r.t.stage1, r.t.stage2, r.t.latency);
+      } catch (...) {
+        consumer_error = std::current_exception();
+        failed = true;
       }
     });
 
     std::vector<uint8_t> buf(static_cast<size_t>(w) * h * 3);
     auto next_due = Clock::now();
     int64_t id = 0;
-    while ((limit == 0 || id < limit) && std::fread(buf.data(), 1, buf.size(), in) == buf.size()) {
-      if (fps > 0) {
-        next_due += std::chrono::duration_cast<Clock::duration>(std::chrono::duration<double>(1.0 / fps));
-        std::this_thread::sleep_until(next_due);
+    try {
+      while (!failed && (limit == 0 || id < limit) && std::fread(buf.data(), 1, buf.size(), in) == buf.size()) {
+        if (fps > 0) {
+          next_due += std::chrono::duration_cast<Clock::duration>(std::chrono::duration<double>(1.0 / fps));
+          std::this_thread::sleep_until(next_due);
+        }
+        engine.Submit(id++, buf.data(), w, h);
       }
-      engine.Submit(id++, buf.data(), w, h);
+    } catch (...) {  // a joinable std::thread must not be destroyed
+      engine.Close();
+      consumer.join();
+      throw;
     }
     engine.Close();
     consumer.join();
+    if (consumer_error) std::rethrow_exception(consumer_error);
 
     const int timed = frames - warmup;
     std::printf("\n%d frames (%d timed after %d warm-up), %.0f person pixels/frame\n", frames, timed, warmup,
@@ -144,6 +161,9 @@ int main(int argc, char** argv) {
       stats[k].Print(k);
   } catch (const std::exception& e) {
     std::fprintf(stderr, "error: %s\n", e.what());
+    return 1;
+  } catch (...) {
+    std::fprintf(stderr, "error: unknown exception\n");
     return 1;
   }
   if (save) std::fclose(save);
