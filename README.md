@@ -42,6 +42,7 @@ As a result, we achieved 17× model size reduction and 2× latency improvement c
 ## 📰 Changelog
 
 - `[October 2026]` Checkpoints moved to [Hugging Face](https://huggingface.co/rusrakhimov/DensePoseFnL).
+- `[October 2026]` Added [LiteRT export](export/README.md) of CSE models that runs in realtime on Android CPU+GPU, along with the [densepose-android](https://github.com/zetyquickly/densepose-android) app.
 - `[January 2022]` Updated to latest Detectron2 and released the weights. **Breaking**: network quantization lost in this version, see [issue](https://github.com/zetyquickly/DensePoseFnL/issues/17).
 - `[June 2020]` Initial code release
 
