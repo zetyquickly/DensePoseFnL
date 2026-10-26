@@ -112,8 +112,8 @@ void BuildAxis(Axis* a, float start, float bin, int bins, int grid, int size) {
   }
 }
 
-// Indices of the k largest of v[0..n) by decreasing value, ties by increasing index.
-std::vector<int> TopK(const float* v, int n, int k, std::vector<float>* scratch) {
+// Indices of the k largest of v[0..n) by decreasing value, ties by increasing index. v must be finite: NaN breaks the ordering.
+std::vector<int> TopKFinite(const float* v, int n, int k, std::vector<float>* scratch) {
   std::vector<int> idx;
   idx.reserve(k);
   if (k >= n) {
@@ -133,6 +133,22 @@ std::vector<int> TopK(const float* v, int n, int k, std::vector<float>* scratch)
     idx.insert(idx.end(), ties.begin(), ties.begin() + (k - idx.size()));
   }
   std::sort(idx.begin(), idx.end(), [&](int a, int b) { return v[a] != v[b] ? v[a] > v[b] : a < b; });
+  return idx;
+}
+
+// TopKFinite over the finite values only. A NaN or Inf logit (fp16 overflow on the GPU delegate) is not a candidate, as detectron2
+// drops non-finite scores before NMS (find_top_rpn_proposals); the k best finite ones are kept, so a NaN takes nobody's place.
+std::vector<int> TopK(const float* v, int n, int k, std::vector<float>* scratch) {
+  int bad = 0;
+  for (int i = 0; i < n; ++i) bad += !std::isfinite(v[i]);
+  if (bad == 0) return TopKFinite(v, n, k, scratch);
+  std::vector<int> at;  // original index of each finite value
+  std::vector<float> finite;
+  at.reserve(n - bad), finite.reserve(n - bad);
+  for (int i = 0; i < n; ++i)
+    if (std::isfinite(v[i])) at.push_back(i), finite.push_back(v[i]);
+  std::vector<int> idx = TopKFinite(finite.data(), static_cast<int>(finite.size()), std::min(k, static_cast<int>(finite.size())), scratch);
+  for (int& i : idx) i = at[i];  // `at` is increasing, so ties stay in increasing original index
   return idx;
 }
 

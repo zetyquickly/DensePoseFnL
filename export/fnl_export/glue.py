@@ -69,8 +69,11 @@ def rpn_proposals(logits, deltas, image_hw, post_nms_topk: int):
         _, a, h, w = lg.shape
         lg = lg[0].transpose(1, 2, 0).reshape(-1)                              # (h*w*a,)
         dl = dl[0].reshape(a, 4, h, w).transpose(2, 3, 0, 1).reshape(-1, 4)    # (h*w*a, 4)
-        k = min(len(lg), RPN_PRE_NMS_TOPK)
-        top = np.argpartition(-lg, k - 1)[:k] if k < len(lg) else np.arange(len(lg))
+        # a NaN/Inf logit (fp16 overflow on the GPU delegate) is not a candidate; detectron2 drops non-finite scores before NMS
+        finite = np.flatnonzero(np.isfinite(lg))
+        cand = lg[finite]
+        k = min(len(cand), RPN_PRE_NMS_TOPK)
+        top = finite[np.argpartition(-cand, k - 1)[:k] if k < len(cand) else np.arange(len(cand))]
         b = clip(decode(dl[top], anchors(lv, h, w)[top]), *image_hw)
         ok = ((b[:, 2] - b[:, 0]) > 0) & ((b[:, 3] - b[:, 1]) > 0)
         b, s = b[ok], lg[top][ok]
