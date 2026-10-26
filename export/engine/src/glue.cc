@@ -221,7 +221,11 @@ void RoiAlignChannels(const Feature& f, const Box& b, int out, float scale, int 
   Axis& ay = s->ay;
   Axis& ax = s->ax;
   const float rw = (b.x2 - b.x1) * scale, rh = (b.y2 - b.y1) * scale;
-  const int gw = std::max(static_cast<int>(std::ceil(rw / out)), 1), gh = std::max(static_cast<int>(std::ceil(rh / out)), 1);
+  const int gw = static_cast<int>(std::ceil(rw / out)), gh = static_cast<int>(std::ceil(rh / out));
+  if (gw == 0 || gh == 0) {  // a zero-size box takes no samples in torchvision and pools to zeros
+    std::fill(dst, dst + static_cast<size_t>(c1 - c0) * out * out, 0.f);
+    return;
+  }
   BuildAxis(&ay, b.y1 * scale - 0.5f, rh / out, out, gh, f.h);
   BuildAxis(&ax, b.x1 * scale - 0.5f, rw / out, out, gw, f.w);
   if (ay.max < ay.min || ax.max < ax.min) {  // entirely outside the map

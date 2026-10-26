@@ -104,7 +104,9 @@ def roi_align(feat: np.ndarray, boxes: np.ndarray, out: int, scale: float) -> np
     for k, (x1, y1, x2, y2) in enumerate(boxes):
         sx, sy = x1 * scale - 0.5, y1 * scale - 0.5
         rw, rh = (x2 - x1) * scale, (y2 - y1) * scale
-        gw, gh = max(math.ceil(rw / out), 1), max(math.ceil(rh / out), 1)
+        gw, gh = math.ceil(rw / out), math.ceil(rh / out)
+        if gw == 0 or gh == 0:   # a zero-size box takes no samples in torchvision and pools to zeros
+            continue
         ylo, yhi, wy0, wy1 = taps(sy, rh / out, out, gh, h)
         xlo, xhi, wx0, wx1 = taps(sx, rw / out, out, gw, w)
         rows = feat[:, ylo, :] * wy0[None, :, None] + feat[:, yhi, :] * wy1[None, :, None]      # (C, out*gh, W)

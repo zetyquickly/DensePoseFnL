@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import torch
+from torchvision.ops import roi_align
 
 from fnl_export import glue
 
@@ -17,6 +19,15 @@ def report(name, ours, ref):
         return
     d = np.abs(ours - ref)
     print(f"    {name:<28} {str(ref.shape):<22} max|diff| {d.max():.2e}  mean|diff| {d.mean():.2e}  max|ref| {np.abs(ref).max():.2e}")
+
+
+def check_roi_align(feat):
+    """glue.roi_align against torchvision's on boxes of several sizes; a zero-size box pools to zeros there."""
+    boxes = np.array([[100, 50, 300, 200], [640, 100, 640, 300], [100, 80, 400, 80], [10, 10, 10.5, 10.5]], np.float32)
+    ref = roi_align(torch.from_numpy(feat), [torch.from_numpy(boxes)], 32, 1 / 4, 0, True).numpy()
+    print("roi_align vs torchvision: normal, zero width, zero height, tiny")
+    for b, ours, r in zip(boxes, glue.roi_align(feat[0], boxes, 32, 1 / 4), ref):
+        report(f"box {b.tolist()}", ours, r)
 
 
 def main(files):
@@ -44,6 +55,8 @@ def main(files):
             report("det_scores", scores[:m], ref_s[:m])
         if "dp_head_in" in r:
             report("pool_dp (dp_head_in)", glue.pool_dp(feats[0], ref_b, 32), r["dp_head_in"])
+    if files:
+        check_roi_align(np.load(files[0])["feat_p2"])
 
 
 if __name__ == "__main__":
