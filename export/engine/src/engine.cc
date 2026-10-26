@@ -184,8 +184,9 @@ struct Engine::Impl {
   explicit Impl(const EngineOptions& o) : opts(o), in_q(o.queue_depth), mid_q(o.queue_depth), out_q(1 << 20) {
     std::promise<void> ready1, ready2;
     auto f1 = ready1.get_future(), f2 = ready2.get_future();
-    t1 = std::thread([this, &ready1] { Stage1(&ready1); });
-    t2 = std::thread([this, &ready2] { Stage2(&ready2); });
+    // each thread owns its promise: it outlives this constructor
+    t1 = std::thread([this, r = std::move(ready1)]() mutable { Stage1(std::move(r)); });
+    t2 = std::thread([this, r = std::move(ready2)]() mutable { Stage2(std::move(r)); });
     try {
       f1.get();
       f2.get();
@@ -215,7 +216,8 @@ struct Engine::Impl {
     out_q.Close();
   }
 
-  void Stage1(std::promise<void>* ready) {
+  void Stage1(std::promise<void> ready) {
+    bool started = false;
     try {
       const std::string dir = opts.model_dir + "/";
       const int cpu = opts.cpu_threads;
@@ -227,7 +229,8 @@ struct Engine::Impl {
       k1 = b1.InShape()[0], k2 = b2.InShape()[0];
       res = b2.OutShape(0)[2];
       emb_dim = b2.OutShape(0)[1];
-      ready->set_value();
+      ready.set_value();
+      started = true;
 
       InFrame f;
       while (in_q.Pop(&f)) {
@@ -284,20 +287,20 @@ struct Engine::Impl {
         if (!mid_q.Push(std::move(m))) break;
       }
     } catch (...) {
-      try {
-        ready->set_exception(std::current_exception());
-      } catch (...) {  // already set: failure happened after start-up
-        Fail(std::current_exception());
-      }
+      const auto e = std::current_exception();
+      if (!started) ready.set_exception(e);  // the constructor is waiting on it
+      else Fail(e);
     }
     mid_q.Close();
   }
 
-  void Stage2(std::promise<void>* ready) {
+  void Stage2(std::promise<void> ready) {
+    bool started = false;
     try {
       Graph c(opts.model_dir + "/graph_c.tflite", false, opts.cpu_threads, true);
       const int chunk = c.InShape()[0];
-      ready->set_value();
+      ready.set_value();
+      started = true;
 
       MidFrame m;
       std::vector<float> px;
@@ -342,11 +345,9 @@ struct Engine::Impl {
         if (!out_q.Push(std::move(r))) break;
       }
     } catch (...) {
-      try {
-        ready->set_exception(std::current_exception());
-      } catch (...) {
-        Fail(std::current_exception());
-      }
+      const auto e = std::current_exception();
+      if (!started) ready.set_exception(e);  // the constructor is waiting on it
+      else Fail(e);
     }
     out_q.Close();
   }
