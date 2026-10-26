@@ -96,8 +96,9 @@ vertex), `engine` and `engine-approx` are the engine's (vertex ids on the 64x64 
 the `device` filter keeps what the phone sends on (top `K2` with score >= `S`, default 4 and 0.5) where `all` keeps every detection above 0.05.
 
 **Glue tests.** `engine/tests/test_glue.cc` checks the C++ glue against `fnl_export/glue.py`, and `check_glue.py` checks `glue.py` against
-detectron2's own tensors, so the C++ is tied to detectron2 through the numpy port. Both start from tensors dumped by detectron2 on a few images
-(`test_glue` also runs a NaN-logit case: non-finite RPN logits are dropped before the top-k, as detectron2 drops them before NMS):
+detectron2's own tensors, so the C++ is tied to detectron2 through the numpy port. Both exit non-zero on a mismatch, and both start from
+tensors dumped by detectron2 on a few images (`test_glue` also runs a NaN-logit case: non-finite RPN logits are dropped before the top-k, as
+detectron2 drops them before NMS):
 
     uv run --project export/reference python export/reference/dump_detectron2.py export/configs/cse.yaml configs/mobile_parsing_rcnn_b_cse_s3x.yaml \
         export/out/reference_480x640 datasets/coco/val2014/<image>.jpg ...
