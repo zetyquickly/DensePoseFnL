@@ -45,6 +45,10 @@ int main(int argc, char** argv) {
   constexpr int H = 480, W = 640;
   const int dims[5][2] = {{120, 160}, {60, 80}, {30, 40}, {15, 20}, {8, 10}};
   const int fdims[4][2] = {{120, 160}, {60, 80}, {30, 40}, {15, 20}};
+  if (argc < 2) {
+    std::fprintf(stderr, "usage: test_glue VECTOR_DIR [VECTOR_DIR ...]\n");
+    return 2;
+  }
   for (int a = 1; a < argc; ++a) {
     const std::string d = std::string(argv[a]) + "/";
     std::printf("%s\n", argv[a]);

@@ -66,9 +66,9 @@ Nothing above needs this. It is for reproducing the accuracy table and for check
 detectron2 needs old pins (torch 2.2, numpy < 2, timm 0.4.12) that conflict with the export stack, so it lives in its own environment in `reference/`. Set it up once. All commands in this section run from the repo root; "export env" means `uv run --project export`, "reference env" means `uv run --project export/reference`.
 
     uv sync --project export/reference
-    uv pip install --python export/reference/.venv/bin/python --no-build-isolation \
-        "git+https://github.com/facebookresearch/detectron2.git@bb96d0b01d0605761ca182d0e3fac6ead8d8df6e" \
-        "detectron2-densepose @ git+https://github.com/facebookresearch/detectron2.git@bb96d0b01d0605761ca182d0e3fac6ead8d8df6e#subdirectory=projects/DensePose"
+
+The lock includes detectron2 and DensePose at `bb96d0b`. The first sync compiles detectron2 (a C++ compiler, a few minutes), without its
+CUDA ops, since everything here runs on the CPU. The build settings in `reference/pyproject.toml` need uv 0.8.6 or newer.
 
 ### Reproducing the accuracy table
 
@@ -87,7 +87,7 @@ The images and `densepose_minival2014_cse.json` go under `datasets/coco/`. The s
             datasets/coco/val2014 $ANN $OUT/d2_$mode.npz --mode $mode
     done
 
-    # once: geodesic distances for GPS / GPSm (needs ~10 GB of RAM)
+    # once: geodesic distances for GPS / GPSm (6 GB download, needs ~10 GB of RAM)
     uv run --project export/reference python export/reference/prep_geodists.py
 
     # score
@@ -130,6 +130,6 @@ The first row of the table, the Model Zoo numbers, is detectron2's published res
     make -C export/out/engine_host test_glue
     export/out/engine_host/test_glue export/out/glue_vectors/*
 
-`test_glue` also feeds the C++ glue NaN RPN logits. Non-finite logits are dropped before the top-k, as detectron2 drops them before NMS.
+`check_glue.py` and `test_glue` exit non-zero on a mismatch, and when given no input. `test_glue` also feeds the C++ glue NaN RPN logits. Non-finite logits are dropped before the top-k, as detectron2 drops them before NMS.
 
 To compare detectron2 with our graphs one graph at a time, run `export/compare_with_detectron2.py`. It checks the graphs eagerly in PyTorch and as `.tflite`, each fed detectron2's own input so errors don't pile up.
