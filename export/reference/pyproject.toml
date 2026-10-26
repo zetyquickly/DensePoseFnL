@@ -1,0 +1,42 @@
+[project]
+name = "fnl-reference"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "av>=8.0.3",
+    "cloudpickle>=3.1.2",
+    "detectron2",
+    "detectron2-densepose",
+    "fvcore>=0.1.5.post20221221",
+    "matplotlib>=3.10.9",
+    "numpy<2",
+    "opencv-python-headless>=4.11.0.86",
+    "pillow<11",
+    "pycocotools>=2.0.11",
+    "pyyaml>=6.0.3",
+    "scipy>=1.5.4",
+    "setuptools>=84.2.1",
+    "tabulate>=0.10.0",
+    "termcolor>=3.3.0",
+    "timm==0.4.12",
+    "torch==2.2.2",
+    "torchvision==0.17.2",
+    "wheel>=0.48.0",
+    "yacs>=0.1.8",
+]
+
+[tool.uv]
+# extra-build-dependencies with match-runtime (0.8.5) and extra-build-variables (0.8.6)
+required-version = ">=0.8.6"
+# DensePose's setup.py asks for detectron2 from its default branch; keep it on the commit the repo is pinned to
+override-dependencies = [
+    "detectron2 @ git+https://github.com/facebookresearch/detectron2.git@bb96d0b01d0605761ca182d0e3fac6ead8d8df6e",
+]
+# detectron2's setup.py imports torch. Its CUDA ops are not needed (everything here runs on the CPU) and fail to build
+# when the local CUDA toolkit differs from torch's, so its build does not see the GPUs.
+extra-build-dependencies = { detectron2 = [{ requirement = "torch", match-runtime = true }] }
+extra-build-variables = { detectron2 = { CUDA_VISIBLE_DEVICES = "" } }
+
+[tool.uv.sources]
+detectron2 = { git = "https://github.com/facebookresearch/detectron2.git", rev = "bb96d0b01d0605761ca182d0e3fac6ead8d8df6e" }
+detectron2-densepose = { git = "https://github.com/facebookresearch/detectron2.git", rev = "bb96d0b01d0605761ca182d0e3fac6ead8d8df6e", subdirectory = "projects/DensePose" }

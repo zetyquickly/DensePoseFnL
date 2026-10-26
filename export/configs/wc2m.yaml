@@ -1,0 +1,15 @@
+model:
+  name: wc2m
+  checkpoint: ../../models/mobile_parsing_rcnn_b_wc2m_s3x.pth
+  head: chart
+  chart_confidence: true
+input:
+  input_height: 480
+  input_width: 640
+rois:
+  k_proposals: 100
+  k_detections: 4
+cse:
+  cse_match: off
+export:
+  out_dir: ../out
