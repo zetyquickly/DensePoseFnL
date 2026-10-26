@@ -88,7 +88,7 @@ the export env, detectron2's from the reference env, and one scorer reads both:
     # reference env: the original model (--mode default: shortest edge 800; --mode canvas: our letterboxed input)
     uv run --project export/reference python export/reference/eval_detectron2.py export/configs/cse.yaml configs/mobile_parsing_rcnn_b_cse_s3x.yaml \
         datasets/coco/val2014 $ANN export/out/eval/d2.npz --mode default
-    uv run --project export/reference python export/reference/prep_geodists.py     # once: geodesic distances for GPS / GPSm, needs ~10 GB of RAM
+    uv run --project export/reference python export/reference/prep_geodists.py     # once: geodesic distances for GPS / GPSm (6 GB download), needs ~10 GB of RAM
     uv run --project export/reference python export/reference/eval_predictions.py "d2=export/out/eval/d2.npz" "ours=export/out/eval/ours.npz@engine-approx@device"
 
 A run is `LABEL=FILE.npz[@MATCHING[@FILTER]]`: `stock` matching is detectron2's (embedding resized bilinearly to the box, exact nearest
