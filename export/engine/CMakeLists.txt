@@ -11,6 +11,10 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 add_library(fnl_glue STATIC src/glue.cc)
 target_include_directories(fnl_glue PUBLIC include)
 
+# host test of the glue against the numpy reference (no TFLite): engine/tools/make_test_vectors.py makes its input
+add_executable(test_glue tests/test_glue.cc)
+target_link_libraries(test_glue fnl_glue)
+
 # On-device runtime (engine + CLI). Needs a TFLite build for the same ABI:
 #   cmake -DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-31 \
 #         -DTFLITE_SRC_DIR=<tensorflow>/ -DTFLITE_BUILD_DIR=<tflite cmake build dir> ..

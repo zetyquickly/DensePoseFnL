@@ -1,0 +1,24 @@
+[project]
+name = "fnl-reference"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "cloudpickle>=3.1.2",
+    "fvcore>=0.1.5.post20221221",
+    "iopath>=0.1.10",
+    "matplotlib>=3.10.9",
+    "numpy<2",
+    "omegaconf>=2.4.0",
+    "opencv-python-headless>=4.11.0.86",
+    "pillow<11",
+    "pycocotools>=2.0.11",
+    "pyyaml>=6.0.3",
+    "setuptools>=84.2.1",
+    "tabulate>=0.10.0",
+    "termcolor>=3.3.0",
+    "timm==0.4.12",
+    "torch==2.2.2",
+    "torchvision==0.17.2",
+    "wheel>=0.48.0",
+    "yacs>=0.1.8",
+]

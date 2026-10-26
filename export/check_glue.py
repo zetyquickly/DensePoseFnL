@@ -1,0 +1,50 @@
+"""Check fnl_export/glue.py against the tensors dump_detectron2.py captured. Each step is fed detectron2's own input,
+so a mismatch points at one function (the box head needs 1000 proposals here, as detectron2 runs it on all of them).
+usage: python check_glue.py out/reference_480x640/*.npz
+"""
+import sys
+from pathlib import Path
+
+import numpy as np
+
+from fnl_export import glue
+
+
+def report(name, ours, ref):
+    ours, ref = np.asarray(ours, np.float64), np.asarray(ref, np.float64)
+    if ours.shape != ref.shape:
+        print(f"    {name:<28} SHAPE {ours.shape} vs {ref.shape}")
+        return
+    d = np.abs(ours - ref)
+    print(f"    {name:<28} {str(ref.shape):<22} max|diff| {d.max():.2e}  mean|diff| {d.mean():.2e}  max|ref| {np.abs(ref).max():.2e}")
+
+
+def main(files):
+    for f in files:
+        r = np.load(f)
+        h, w = r["image_raw_padded"].shape[2:]
+        print(Path(f).name)
+        logits = [r[f"rpn_logits_{i}"] for i in range(5)]
+        deltas = [r[f"rpn_deltas_{i}"] for i in range(5)]
+        props = glue.rpn_proposals(logits, deltas, (h, w), post_nms_topk=1000)
+        feats = [r[f"feat_p{i}"] for i in (2, 3, 4, 5)]
+        ref_in = r["box_head_in"]
+        print(f"  proposals: ours {len(props)}, detectron2 {len(ref_in)}")
+        n = min(len(props), len(ref_in))
+        report("pool_box (box_head_in)", glue.pool_box(feats, props[:n], 7), ref_in[:n])
+
+        probs = np.exp(r["box_cls_logits"] - r["box_cls_logits"].max(1, keepdims=True))
+        probs /= probs.sum(1, keepdims=True)
+        boxes, scores = glue.detections(probs[:n], r["box_deltas"][:n], props[:n], (h, w))
+        ref_b, ref_s = r["det_boxes"], r["det_scores"]
+        print(f"  detections: ours {len(boxes)}, detectron2 {len(ref_b)}")
+        m = min(len(boxes), len(ref_b))
+        if m:
+            report("det_boxes", boxes[:m], ref_b[:m])
+            report("det_scores", scores[:m], ref_s[:m])
+        if "dp_head_in" in r:
+            report("pool_dp (dp_head_in)", glue.pool_dp(feats[0], ref_b, 32), r["dp_head_in"])
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
