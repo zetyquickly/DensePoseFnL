@@ -34,7 +34,7 @@ def main():
     cfg = ExportConfig.load(a.config)
     graphs = cfg.resolve(cfg.out_dir) / "litert" / cfg.name
     adb = [a.adb] + (["-s", a.serial] if a.serial else [])
-    sh = lambda line: subprocess.run([*adb, "shell", line], text=True)
+    sh = lambda line: subprocess.run([*adb, "shell", line], text=True, check=True)
     push = lambda src, dst: subprocess.run([*adb, "push", str(src), dst], check=True, capture_output=True)
 
     sh(f"mkdir -p {REMOTE}/models")
@@ -50,7 +50,7 @@ def main():
 
     flags = f"--models {REMOTE}/models --frames {remote} --width {a.width} --height {a.height} --save {REMOTE}/out.fnl"
     flags += f" --limit {a.limit} --fps {a.fps}" + (" --cpu" if a.cpu else "") + " " + " ".join(a.extra)
-    sh(f"cd {REMOTE} && ./fnl_run {flags}")
+    sh(f"rm -f {REMOTE}/out.fnl && cd {REMOTE} && ./fnl_run {flags}")
 
     out = cfg.resolve(cfg.out_dir) / "engine" / cfg.name
     out.mkdir(parents=True, exist_ok=True)
